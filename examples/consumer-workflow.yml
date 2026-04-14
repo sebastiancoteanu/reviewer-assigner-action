@@ -17,7 +17,7 @@ jobs:
       members: read
     steps:
       - uses: actions/checkout@v4
-      - uses: sebastiancoteanu/reviewer-assigner-action@v1.0.2
+      - uses: sebastiancoteanu/reviewer-assigner-action@v1.0.3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           config-path: .github/reviewer-assignment.yml
