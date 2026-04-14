@@ -122,11 +122,11 @@ GitHub Action references look like:
 
 Recommended refs:
 
-- **Release tag** (best for consumers): `@v1.0.1` (immutable patch pin)
+- **Release tag** (best for consumers): `@v1.0.2` (immutable patch pin)
 - **Branch** (okay for early iteration): `@main`
 - **Commit SHA** (most deterministic): `@<40-char-sha>`
 
-Note: a moving major tag like `@v1` may exist, but **immutable pins** (`@v1.0.1` or a full SHA) are safer for production consumer repos.
+Note: a moving major tag like `@v1` may exist, but **immutable pins** (`@v1.0.2` or a full SHA) are safer for production consumer repos.
 
 ---
 
