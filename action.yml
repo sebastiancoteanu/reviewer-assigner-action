@@ -1,0 +1,19 @@
+name: "Reviewer Assigner"
+description: "Auto-assign PR reviewers using CODEOWNERS, recent editors, and load balancing."
+
+inputs:
+  github-token:
+    description: "GitHub token used for API calls."
+    required: true
+  config-path:
+    description: "Repository config path for reviewer assignment settings."
+    required: false
+    default: ".github/reviewer-assignment.yml"
+
+runs:
+  using: "node20"
+  main: "dist/main.js"
+
+branding:
+  icon: "users"
+  color: "blue"
