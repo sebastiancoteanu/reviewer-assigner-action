@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsup src/main.ts --format cjs --target node20 --out-dir dist --clean",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/**/*.test.ts"
+    "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
