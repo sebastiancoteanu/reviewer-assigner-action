@@ -45,6 +45,33 @@ Team expansion from `@org/team` entries in `CODEOWNERS` may require additional p
 
 ## Usage
 
+### Marketplace install snippet (what to paste)
+
+GitHub Marketplace generates this snippet from `action.yml` inputs. Use this complete job example so permissions and config path are clear:
+
+```yaml
+name: Auto Assign Reviewers
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      members: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: sebastiancoteanu/reviewer-assigner-action@v1.0.4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }} # required
+          config-path: .github/reviewer-assignment.yml
+```
+
 ### Action inputs
 
 | Input | Required | Default | Description |

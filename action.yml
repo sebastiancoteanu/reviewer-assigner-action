@@ -3,10 +3,10 @@ description: "Auto-assign PR reviewers using CODEOWNERS, recent editors, and loa
 
 inputs:
   github-token:
-    description: "GitHub token used for API calls."
+    description: "Required. Token for GitHub API calls; set this from your workflow secret GITHUB_TOKEN."
     required: true
   config-path:
-    description: "Repository config path for reviewer assignment settings."
+    description: "Optional path to reviewer config file in the consumer repo (default: .github/reviewer-assignment.yml)."
     required: false
     default: ".github/reviewer-assignment.yml"
 
