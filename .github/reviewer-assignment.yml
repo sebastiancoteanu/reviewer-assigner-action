@@ -1,6 +1,5 @@
 reviewer_count: 2
 lookback_days: 60
-recent_editors_limit: 3
 exclude_users: []
 exclude_bots: true
 dry_run: false

@@ -46,10 +46,6 @@ function isBotLogin(login) {
 function uniq(values) {
   return [...new Set(values)];
 }
-function intersection(left, right) {
-  const rightSet = new Set(right);
-  return left.filter((item) => rightSet.has(item));
-}
 function shuffle(values, rng = Math.random) {
   const next = [...values];
   for (let i = next.length - 1; i > 0; i -= 1) {
@@ -63,7 +59,10 @@ async function sleep(ms) {
     setTimeout(resolve, ms);
   });
 }
-async function withRetry(action, { retries = 3, logger = console } = {}) {
+async function withRetry(action, {
+  retries = 3,
+  logger = console
+} = {}) {
   let attempt = 0;
   while (attempt <= retries) {
     try {
@@ -93,7 +92,11 @@ async function withRetry(action, { retries = 3, logger = console } = {}) {
 }
 
 // src/codeowners.ts
-var CODEOWNERS_PATHS = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
+var CODEOWNERS_PATHS = [
+  ".github/CODEOWNERS",
+  "CODEOWNERS",
+  "docs/CODEOWNERS"
+];
 function stripComment(line) {
   const index = line.indexOf("#");
   if (index === -1) {
@@ -149,7 +152,9 @@ async function getCodeownersContent(octokit, owner, repo, logger) {
       if (Array.isArray(response.data) || !("content" in response.data)) {
         continue;
       }
-      const content = Buffer.from(response.data.content, "base64").toString("utf8");
+      const content = Buffer.from(response.data.content, "base64").toString(
+        "utf8"
+      );
       return { content, path };
     } catch (error2) {
       if (error2?.status !== 404) {
@@ -216,7 +221,9 @@ async function createCodeownersResolver(octokit, owner, repo, logger) {
     path: loaded.path,
     async getCodeOwnersForFile(filePath) {
       const rawOwners = getOwnersForFile(filePath, rules);
-      const expanded = await Promise.all(rawOwners.map((entry) => expandOwner(entry)));
+      const expanded = await Promise.all(
+        rawOwners.map((entry) => expandOwner(entry))
+      );
       return [...new Set(expanded.flat())];
     }
   };
@@ -227,7 +234,6 @@ var import_js_yaml = __toESM(require("js-yaml"));
 var DEFAULT_CONFIG = {
   reviewer_count: 2,
   lookback_days: 60,
-  recent_editors_limit: 3,
   exclude_users: [],
   exclude_bots: true,
   dry_run: false,
@@ -241,7 +247,6 @@ function normalizeConfig(rawConfig) {
     ...merged,
     reviewer_count: Number(merged.reviewer_count) || DEFAULT_CONFIG.reviewer_count,
     lookback_days: Number(merged.lookback_days) || DEFAULT_CONFIG.lookback_days,
-    recent_editors_limit: Number(merged.recent_editors_limit) || DEFAULT_CONFIG.recent_editors_limit,
     exclude_users: Array.isArray(merged.exclude_users) ? merged.exclude_users : []
   };
 }
@@ -266,7 +271,9 @@ async function loadConfig(octokit, owner, repo, logger, configPath) {
     return config;
   } catch (error2) {
     if (error2?.status !== 404) {
-      logger.warn(`Failed to read ${configPath}, using defaults: ${error2.message}`);
+      logger.warn(
+        `Failed to read ${configPath}, using defaults: ${error2.message}`
+      );
     } else {
       logger.info(`No ${configPath} found. Using defaults.`);
     }
@@ -297,62 +304,13 @@ async function getChangedFiles(pr, context2) {
     }
     return !GENERATED_FILE_PATTERN.test(file.filename);
   }).map((file) => file.filename);
-  logger.info(`Changed files (${filtered.length}): ${filtered.join(", ") || "none"}`);
+  logger.info(
+    `Changed files (${filtered.length}): ${filtered.join(", ") || "none"}`
+  );
   return filtered;
 }
-async function getRecentEditorsForFile(filePath, days = 60, context2) {
-  const { octokit, owner, repo, config, logger, commitStatsCache } = context2;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1e3).toISOString();
-  const commits = await octokit.paginate(octokit.rest.repos.listCommits, {
-    owner,
-    repo,
-    path: filePath,
-    since,
-    per_page: 100
-  });
-  const changedLinesByAuthor = /* @__PURE__ */ new Map();
-  for (const commit of commits) {
-    const login = commit.author?.login || commit.committer?.login;
-    if (!login) {
-      continue;
-    }
-    if (config.exclude_bots && isBotLogin(login)) {
-      continue;
-    }
-    if (!commitStatsCache.has(commit.sha)) {
-      commitStatsCache.set(
-        commit.sha,
-        withRetry(
-          () => octokit.rest.repos.getCommit({
-            owner,
-            repo,
-            ref: commit.sha
-          }),
-          { logger }
-        )
-      );
-    }
-    const commitDetail = await commitStatsCache.get(commit.sha);
-    const fileStats = commitDetail.data.files?.find(
-      (item) => item.filename === filePath
-    );
-    if (!fileStats) {
-      continue;
-    }
-    const changedLines = (fileStats.additions || 0) + (fileStats.deletions || 0);
-    changedLinesByAuthor.set(login, (changedLinesByAuthor.get(login) || 0) + changedLines);
-  }
-  return [...changedLinesByAuthor.entries()].sort((a, b) => b[1] - a[1]).slice(0, config.recent_editors_limit).map(([login]) => login);
-}
 async function getCandidateReviewers(files, context2) {
-  const {
-    config,
-    logger,
-    codeownersResolver,
-    recentEditorsCache,
-    candidateCoverage,
-    fileDetails
-  } = context2;
+  const { logger, codeownersResolver, candidateCoverage, fileDetails } = context2;
   const allCandidates = /* @__PURE__ */ new Set();
   for (const filePath of files) {
     const owners = await codeownersResolver.getCodeOwnersForFile(filePath);
@@ -360,27 +318,19 @@ async function getCandidateReviewers(files, context2) {
       logger.info(`- ${filePath}: no CODEOWNERS match; skipping.`);
       continue;
     }
-    if (!recentEditorsCache.has(filePath)) {
-      recentEditorsCache.set(
-        filePath,
-        getRecentEditorsForFile(filePath, config.lookback_days, context2)
-      );
-    }
-    const recentEditors = await recentEditorsCache.get(filePath);
-    const strictCandidates = intersection(owners, recentEditors);
-    const selected = strictCandidates.length ? strictCandidates : owners;
     fileDetails.set(filePath, {
       owners,
-      recentEditors,
-      strictCandidates,
-      selected
+      selected: owners
     });
     logger.info(
-      `- ${filePath}: owners=[${owners.join(", ")}], recent=[${recentEditors.join(", ")}], strict=[${strictCandidates.join(", ")}], used=[${selected.join(", ")}]`
+      `- ${filePath}: owners=[${owners.join(", ")}], used=[${owners.join(", ")}]`
     );
-    for (const candidate of selected) {
+    for (const candidate of owners) {
       allCandidates.add(candidate);
-      candidateCoverage.set(candidate, (candidateCoverage.get(candidate) || 0) + 1);
+      candidateCoverage.set(
+        candidate,
+        (candidateCoverage.get(candidate) || 0) + 1
+      );
     }
   }
   return [...allCandidates];
@@ -413,64 +363,140 @@ async function filterAssignableCandidates(candidates, prAuthor, context2) {
       );
       assignable.push(candidate);
     } catch (error2) {
-      logger.info(`Skipping non-assignable candidate ${candidate}: ${error2.message}`);
+      logger.info(
+        `Skipping non-assignable candidate ${candidate}: ${error2.message}`
+      );
     }
   }
   return assignable;
 }
 function scoreFromMetrics(metrics) {
-  return metrics.active_reviews * 1 + metrics.recent_reviews_24h * 0.5 + metrics.avg_pr_size * 0.3;
+  return metrics.activeReviews * 1 + metrics.avgPrSize * 0.3;
 }
 async function getReviewerLoadScore(user, context2) {
-  const { openPullRequests = [], logger } = context2;
-  const now = Date.now();
+  const { openPullRequests = [], logger, historicalFileReviewCounts } = context2;
   let activeReviews = 0;
-  let recentReviews24h = 0;
   const activePrSizes = [];
   for (const pr of openPullRequests) {
-    const requestedReviewers = pr.requested_reviewers?.map((reviewer) => reviewer.login) ?? [];
+    const requestedReviewers = pr.requested_reviewers?.map(
+      (reviewer) => reviewer.login
+    ) ?? [];
     const isRequested = requestedReviewers.includes(user);
     if (isRequested) {
       activeReviews += 1;
       const size = (pr.additions || 0) + (pr.deletions || 0);
       activePrSizes.push(size);
     }
-    const reviews = pr.reviews || [];
-    for (const review of reviews) {
-      if (review.user?.login !== user || !review.submitted_at) {
-        continue;
-      }
-      const ageMs = now - new Date(review.submitted_at).getTime();
-      if (ageMs <= 24 * 60 * 60 * 1e3) {
-        recentReviews24h += 1;
-      }
-    }
   }
   const avgPrSize = activePrSizes.length > 0 ? activePrSizes.reduce((sum, value) => sum + value, 0) / activePrSizes.length : 0;
   const metrics = {
-    active_reviews: activeReviews,
-    recent_reviews_24h: recentReviews24h,
-    avg_pr_size: avgPrSize
+    activeReviews,
+    avgPrSize,
+    fileReviewCount: historicalFileReviewCounts.get(user) || 0
   };
   const score = scoreFromMetrics(metrics);
   logger.info(
-    `Score ${user}: active=${metrics.active_reviews}, recent24h=${metrics.recent_reviews_24h}, avgSize=${metrics.avg_pr_size.toFixed(1)} => ${score.toFixed(3)}`
+    `Score ${user}: active=${metrics.activeReviews}, avgSize=${metrics.avgPrSize.toFixed(1)}, fileReviews=${metrics.fileReviewCount} => ${score.toFixed(3)}`
   );
   return { user, score, metrics };
 }
-function rankAndChooseReviewers(scoredCandidates, reviewerCount, rng = Math.random) {
-  const groupedByScore = /* @__PURE__ */ new Map();
-  for (const item of scoredCandidates) {
-    const key = item.score.toFixed(6);
-    if (!groupedByScore.has(key)) {
-      groupedByScore.set(key, []);
-    }
-    groupedByScore.get(key).push(item);
+async function getHistoricalFileReviewCounts(changedFiles, candidates, currentPullNumber, context2) {
+  const {
+    octokit,
+    owner,
+    repo,
+    logger,
+    config,
+    openPullRequests = []
+  } = context2;
+  const counts = /* @__PURE__ */ new Map();
+  const changedFilesSet = new Set(changedFiles);
+  const candidateSet = new Set(candidates);
+  const since = new Date(
+    Date.now() - config.lookback_days * 24 * 60 * 60 * 1e3
+  );
+  for (const candidate of candidates) {
+    counts.set(candidate, 0);
   }
-  const sortedScores = [...groupedByScore.keys()].map(Number).sort((a, b) => a - b).map((value) => value.toFixed(6));
+  const closedPulls = await octokit.paginate(octokit.rest.pulls.list, {
+    owner,
+    repo,
+    state: "closed",
+    sort: "updated",
+    direction: "desc",
+    per_page: 100
+  });
+  const pullsToInspect = [...openPullRequests, ...closedPulls].filter((pr) => {
+    if (pr.number === currentPullNumber) {
+      return false;
+    }
+    if (!pr.updated_at) {
+      return true;
+    }
+    return new Date(pr.updated_at) >= since;
+  });
+  for (const pr of pullsToInspect) {
+    const files = await withRetry(
+      async () => {
+        const items = await octokit.paginate(octokit.rest.pulls.listFiles, {
+          owner,
+          repo,
+          pull_number: pr.number,
+          per_page: 100
+        });
+        return items.map((item) => item.filename);
+      },
+      { logger }
+    );
+    const hasOverlap = files.some((file) => changedFilesSet.has(file));
+    if (!hasOverlap) {
+      continue;
+    }
+    const reviews = pr.reviews ?? (await withRetry(
+      () => octokit.rest.pulls.listReviews({
+        owner,
+        repo,
+        pull_number: pr.number,
+        per_page: 100
+      }),
+      { logger }
+    )).data;
+    const reviewersForPR = /* @__PURE__ */ new Set();
+    for (const review of reviews) {
+      const login = review.user?.login;
+      if (!login || !candidateSet.has(login)) {
+        continue;
+      }
+      reviewersForPR.add(login);
+    }
+    for (const login of reviewersForPR) {
+      counts.set(login, (counts.get(login) || 0) + 1);
+    }
+  }
+  return counts;
+}
+function rankAndChooseReviewers(scoredCandidates, reviewerCount, rng = Math.random) {
+  const groupedByScoreAndFileReviewCount = /* @__PURE__ */ new Map();
+  for (const item of scoredCandidates) {
+    const key = `${item.score.toFixed(6)}:${item.metrics.fileReviewCount}`;
+    if (!groupedByScoreAndFileReviewCount.has(key)) {
+      groupedByScoreAndFileReviewCount.set(key, []);
+    }
+    groupedByScoreAndFileReviewCount.get(key).push(item);
+  }
+  const sortedKeys = [...groupedByScoreAndFileReviewCount.keys()].sort(
+    (a, b) => {
+      const [scoreA, fileReviewsA] = a.split(":").map(Number);
+      const [scoreB, fileReviewsB] = b.split(":").map(Number);
+      if (scoreA !== scoreB) {
+        return scoreA - scoreB;
+      }
+      return fileReviewsB - fileReviewsA;
+    }
+  );
   const ranked = [];
-  for (const scoreKey of sortedScores) {
-    const items = groupedByScore.get(scoreKey);
+  for (const scoreKey of sortedKeys) {
+    const items = groupedByScoreAndFileReviewCount.get(scoreKey);
     ranked.push(...shuffle(items, rng));
   }
   return ranked.slice(0, reviewerCount);
@@ -546,7 +572,9 @@ function createPullRequestContext(eventPayload) {
     repo,
     number: pullRequest.number,
     author: pullRequest.user?.login,
-    requestedReviewers: pullRequest.requested_reviewers?.map((reviewer) => reviewer.login) ?? []
+    requestedReviewers: pullRequest.requested_reviewers?.map(
+      (reviewer) => reviewer.login
+    ) ?? []
   };
 }
 
@@ -574,7 +602,7 @@ async function maybeLeaveComment(pr, reviewers, context2) {
     "",
     ...reviewers.map((reviewer) => `- @${reviewer}`),
     "",
-    "Selection logic: CODEOWNERS + recent editors + load balancing."
+    "Selection logic: CODEOWNERS + historical file reviewers + load balancing."
   ].join("\n");
   await octokit.rest.issues.createComment({
     owner: pr.owner,
@@ -591,7 +619,13 @@ async function run() {
   const octokit = github.getOctokit(token);
   const eventPayload = github.context.payload;
   const pr = createPullRequestContext(eventPayload);
-  const config = await loadConfig(octokit, pr.owner, pr.repo, logger, configPath);
+  const config = await loadConfig(
+    octokit,
+    pr.owner,
+    pr.repo,
+    logger,
+    configPath
+  );
   if (config.skip_if_reviewers_already_assigned && pr.requestedReviewers.length > 0) {
     logger.info(
       `Skipping: PR already has requested reviewers [${pr.requestedReviewers.join(", ")}]`
@@ -604,42 +638,65 @@ async function run() {
     repo: pr.repo,
     config,
     logger,
-    commitStatsCache: /* @__PURE__ */ new Map(),
-    recentEditorsCache: /* @__PURE__ */ new Map(),
     candidateCoverage: /* @__PURE__ */ new Map(),
     fileDetails: /* @__PURE__ */ new Map(),
     codeownersResolver: {
       getCodeOwnersForFile: async (_filePath) => []
     },
-    openPullRequests: []
+    openPullRequests: [],
+    historicalFileReviewCounts: /* @__PURE__ */ new Map()
   };
   const changedFiles = await getChangedFiles(pr, context2);
   if (!changedFiles.length) {
     logger.info("No changed files found after filtering.");
     return;
   }
-  context2.codeownersResolver = await createCodeownersResolver(octokit, pr.owner, pr.repo, logger);
+  context2.codeownersResolver = await createCodeownersResolver(
+    octokit,
+    pr.owner,
+    pr.repo,
+    logger
+  );
   const candidates = await getCandidateReviewers(changedFiles, context2);
   logger.info(`Candidate pool before filtering: [${candidates.join(", ")}]`);
-  const assignableCandidates = await filterAssignableCandidates(candidates, pr.author, context2);
-  logger.info(`Candidate pool after filtering: [${assignableCandidates.join(", ")}]`);
+  const assignableCandidates = await filterAssignableCandidates(
+    candidates,
+    pr.author,
+    context2
+  );
+  logger.info(
+    `Candidate pool after filtering: [${assignableCandidates.join(", ")}]`
+  );
   if (!assignableCandidates.length) {
     logger.warn("No assignable candidates found.");
     return;
   }
-  context2.openPullRequests = await loadOpenPullRequestsForScoring(context2, pr.number);
+  context2.openPullRequests = await loadOpenPullRequestsForScoring(
+    context2,
+    pr.number
+  );
+  context2.historicalFileReviewCounts = await getHistoricalFileReviewCounts(
+    changedFiles,
+    assignableCandidates,
+    pr.number,
+    context2
+  );
   const scored = [];
   for (const candidate of assignableCandidates) {
     scored.push(await getReviewerLoadScore(candidate, context2));
   }
-  const chosen = rankAndChooseReviewers(scored, config.reviewer_count).map((item) => item.user);
+  const chosen = rankAndChooseReviewers(scored, config.reviewer_count).map(
+    (item) => item.user
+  );
   logger.info(`Final reviewers: [${chosen.join(", ")}]`);
   await assignReviewers(pr, chosen, context2);
   await maybeLeaveComment(pr, chosen, context2);
 }
 if (require.main === module) {
   run().catch((error2) => {
-    core.setFailed(`Failed to assign reviewers: ${error2?.stack || error2?.message || error2}`);
+    core.setFailed(
+      `Failed to assign reviewers: ${error2?.stack || error2?.message || error2}`
+    );
   });
 }
 // Annotate the CommonJS export names for ESM import in node:

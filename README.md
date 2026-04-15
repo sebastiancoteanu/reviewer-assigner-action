@@ -3,7 +3,7 @@
 A reusable **GitHub Action** (TypeScript, Node 20) that **requests PR reviewers** using a practical blend of:
 
 - **`CODEOWNERS`** coverage
-- **Recent human editors** per file (ranked by changed lines over a lookback window)
+- **Historical review familiarity** on the same changed files
 - **Lightweight load balancing** across candidates
 
 Repository: `https://github.com/sebastiancoteanu/reviewer-assigner-action`
@@ -13,7 +13,7 @@ Repository: `https://github.com/sebastiancoteanu/reviewer-assigner-action`
 ## Features
 
 - Trigger on PR lifecycle events: `opened`, `reopened`, `synchronize`
-- Per-file candidate selection with a **strict owners ∩ recent editors** shortcut when possible
+- Per-file candidate selection uses **CODEOWNERS-only** candidates
 - Filters out **PR author**, **bots**, **excluded users**, and users that **cannot be assigned**
 - Optional **dry run** and optional **skip if reviewers already requested**
 - Optional PR **comment** summarizing assignments
@@ -63,7 +63,6 @@ Create `.github/reviewer-assignment.yml`:
 ```yaml
 reviewer_count: 2
 lookback_days: 60
-recent_editors_limit: 3
 exclude_users: []
 exclude_bots: true
 dry_run: false
@@ -77,10 +76,9 @@ leave_comment: false
 | Field | Type | Default | Description |
 | --- | --- | ---: | --- |
 | `reviewer_count` | number | `2` | Number of reviewers to request. |
-| `lookback_days` | number | `60` | Lookback window for “recent editors” analysis. |
-| `recent_editors_limit` | number | `3` | How many top recent editors to consider per file. |
+| `lookback_days` | number | `60` | Lookback window for historical PR/review lookup on changed files. |
 | `exclude_users` | string[] | `[]` | Usernames to exclude from assignment. |
-| `exclude_bots` | boolean | `true` | Exclude bot-like accounts from recent-editor signals and candidate pools. |
+| `exclude_bots` | boolean | `true` | Exclude bot-like accounts from candidate pools. |
 | `dry_run` | boolean | `false` | If `true`, logs intended reviewers but does not request them. |
 | `skip_if_reviewers_already_assigned` | boolean | `true` | If the PR already has requested reviewers, do nothing. |
 | `skip_generated_files` | boolean | `true` | Skip some generated-ish paths from reviewer signals (heuristic). |
@@ -95,20 +93,18 @@ If the config file is missing, the action falls back to defaults.
 1. **Collect changed files** for the PR (removed files are ignored; optional generated-path skipping).
 2. For each changed file:
    - Resolve **owners** from `CODEOWNERS` (last matching rule wins).
-   - Compute **recent editors** from commit history via the GitHub API:
-     - Rank authors by total **changed lines** in that file: `additions + deletions` across commits in the lookback window
-     - Take the top `recent_editors_limit` distinct usernames (bots excluded when configured)
-   - Compute `strict = owners ∩ recent`
-   - If `strict` is non-empty, use `strict`; otherwise use **all owners** for that file
-3. **Union** candidates across files.
+3. **Union** owner candidates across files.
 4. **Filter** candidates:
    - remove PR author
    - remove excluded users / bots (when configured)
    - remove users that are not assignable (best-effort via GitHub API checks)
 5. **Score** remaining candidates (lower is better):
-   - `score = active_reviews * 1.0 + recent_reviews_24h * 0.5 + avg_pr_size * 0.3`
-6. Sort by **ascending** score (lowest load first), **randomize ties**, pick the first `reviewer_count`.
-7. **Request reviewers** on the PR (unless `dry_run`).
+   - `score = active_reviews * 1.0 + avg_pr_size * 0.3`
+6. Use historical file-review count as a secondary ranker:
+   - for PRs (open + recent closed) that touched the same files, count who reviewed them
+   - for equal load scores, prefer higher `fileReviewCount`
+7. Sort by **ascending** score (lowest load first), apply secondary rank, randomize exact ties, pick the first `reviewer_count`.
+8. **Request reviewers** on the PR (unless `dry_run`).
 
 If no eligible candidates remain, the action **logs** and exits **successfully** (it does not fail the workflow by default).
 
@@ -132,7 +128,7 @@ Note: a moving major tag like `@v1` may exist, but **immutable pins** (`@v1.0.3`
 
 ## Limitations / notes
 
-- **GitHub API costs**: “recent editors” uses commit + commit-details calls; large PRs can be chatty.
+- **GitHub API costs**: historical file-review matching may require many PR file/review lookups in large repositories.
 - **Team expansion**: `@org/team` owners require API access that may be restricted by org policy; failures degrade gracefully with warnings.
 - **Correctness vs heuristics**: generated-file skipping and bot detection are intentionally simple.
 
